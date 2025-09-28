@@ -1,0 +1,115 @@
+{
+  "name": "codex-ratelimit",
+  "displayName": "Codex Rate Limit Monitor",
+  "description": "A VSCode extension for monitoring Codex rate limits",
+  "version": "0.9.0",
+  "publisher": "xiangz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xiangz/codex-ratelimit-vscode"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other",
+    "AI"
+  ],
+  "keywords": [
+    "claude",
+    "codex",
+    "rate-limit",
+    "monitoring",
+    "usage",
+    "analytics"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codex-ratelimit.refreshStats",
+        "title": "Codex Rate Limit: Refresh Statistics",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "codex-ratelimit.showDetails",
+        "title": "Codex Rate Limit: Show Details",
+        "icon": "$(table)"
+      },
+      {
+        "command": "codex-ratelimit.openSettings",
+        "title": "Codex Rate Limit: Open Settings",
+        "icon": "$(gear)"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "Codex Rate Limit",
+        "properties": {
+          "codexRatelimit.enableLogging": {
+            "type": "boolean",
+            "default": false,
+            "description": "Enable detailed logging for debugging purposes.",
+            "scope": "window"
+          },
+          "codexRatelimit.enableStatusBarColors": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable colored status bar based on usage percentage.",
+            "scope": "window"
+          },
+          "codexRatelimit.warningThreshold": {
+            "type": "number",
+            "default": 70,
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Usage percentage threshold for warning colors.",
+            "scope": "window"
+          },
+          "codexRatelimit.sessionPath": {
+            "type": "string",
+            "default": "",
+            "description": "Custom path to Codex CLI/extension sessions directory (leave empty for default ~/.codex/sessions).",
+            "scope": "window"
+          },
+          "codexRatelimit.refreshInterval": {
+            "type": "number",
+            "default": 10,
+            "minimum": 5,
+            "maximum": 3600,
+            "description": "How often to refresh the stats (in seconds). Minimum 5 seconds, maximum 1 hour.",
+            "scope": "window"
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "npm run typecheck && npm run bundle",
+    "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --sourcemap --outfile=out/extension.js --log-level=info",
+    "typecheck": "tsc -p ./ --noEmit",
+    "watch": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --sourcemap --outfile=out/extension.js --watch",
+    "pretest": "npm run compile",
+    "lint": "eslint src --ext ts",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/node": "18.x",
+    "@types/vscode": "^1.96.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "esbuild": "^0.25.10",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "glob": "^10.3.10"
+  },
+  "extensionKind": [
+    "ui"
+  ]
+}
