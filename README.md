@@ -12,6 +12,8 @@ A Visual Studio Code/Cursor/Windsurf extension for monitoring OPENAI Codex rate 
 
 ## Installation
 
+For most users, simply search for "Codex Rate Limit Monitor" in your editor's extension marketplace and install it directly.
+
 ### Package and Install the Extension
 
 #### Step 1: Install VSCE (VSCode Extension Manager)

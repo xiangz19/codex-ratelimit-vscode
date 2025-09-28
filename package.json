@@ -2,6 +2,7 @@
   "name": "codex-ratelimit",
   "displayName": "Codex Rate Limit Monitor",
   "description": "A VSCode extension for monitoring Codex rate limits",
+  "license": "MIT",
   "version": "0.9.0",
   "publisher": "xiangz19",
   "icon": "icon.png",
