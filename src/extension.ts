@@ -32,7 +32,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const openSettingsCommand = vscode.commands.registerCommand('codex-ratelimit.openSettings', async () => {
       log('Open settings command triggered');
-      await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:codex-tools.codex-ratelimit');
+      await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:xiangz19.codex-ratelimit');
     });
 
     // Add window focus event listeners
