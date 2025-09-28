@@ -78,6 +78,10 @@ Click the status bar item or use the command `Codex Rate Limit: Show Details` to
 - Reset times and outdated status indicators
 - Token usage summary
 
+## Companion CLI Utility
+
+Prefer a terminal workflow? The [codex-ratelimit](https://github.com/xiangz19/codex-ratelimit) project provides a single-file Python CLI/TUI tool that mirrors the progress bars and live rate-limit updates used here.
+
 ## Commands
 
 - `codex-ratelimit.refreshStats` - Manually refresh rate limit data
@@ -137,20 +141,6 @@ npm run compile
 # Run the extension for testing
 # Press F5 in VSCode to launch Extension Development Host
 ```
-
-### Publishing to VSCode Marketplace (Optional)
-
-To publish to the official VSCode Marketplace:
-
-```bash
-# First time setup
-vsce login <publisher-name>
-
-# Publish
-vsce publish
-```
-
-Note: You'll need to create a publisher account at https://marketplace.visualstudio.com/manage first.
 
 ## Architecture
 

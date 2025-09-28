@@ -6,7 +6,7 @@
   "publisher": "xiangz",
   "repository": {
     "type": "git",
-    "url": "https://github.com/xiangz/codex-ratelimit-vscode"
+    "url": "https://github.com/xiangz19/codex-ratelimit-vscode"
   },
   "engines": {
     "vscode": "^1.96.0"
