@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { glob } from 'glob';
-import { EventRecord, RateLimitData, ParseResult, TokenCountPayload } from '../interfaces/types';
+import { EventRecord, RateLimit, RateLimitData, ParseResult, TokenCountPayload, TokenUsage } from '../interfaces/types';
 import { log } from './logger';
 import * as vscode from 'vscode';
 
@@ -13,12 +13,28 @@ function getSessionBasePath(customPath?: string): string {
   return path.join(os.homedir(), '.codex', 'sessions');
 }
 
-function calculateResetTime(recordTimestamp: Date, resetInSeconds: number): { resetTime: Date; isOutdated: boolean } {
-  const resetTime = new Date(recordTimestamp.getTime() + resetInSeconds * 1000);
+function calculateResetTime(recordTimestamp: Date, rateLimit: RateLimit): { resetTime: Date; isOutdated: boolean; secondsUntilReset: number } {
   const currentTime = new Date();
+  let resetTime: Date | null = null;
+
+  if (typeof rateLimit.resets_at === 'number' && !Number.isNaN(rateLimit.resets_at)) {
+    resetTime = new Date(rateLimit.resets_at * 1000);
+  } else if (typeof rateLimit.resets_in_seconds === 'number' && !Number.isNaN(rateLimit.resets_in_seconds)) {
+    resetTime = new Date(recordTimestamp.getTime() + rateLimit.resets_in_seconds * 1000);
+  }
+
+  if (!resetTime || Number.isNaN(resetTime.getTime())) {
+    return {
+      resetTime: recordTimestamp,
+      isOutdated: true,
+      secondsUntilReset: 0
+    };
+  }
+
+  const secondsUntilReset = Math.max(0, Math.floor((resetTime.getTime() - currentTime.getTime()) / 1000));
   const isOutdated = resetTime < currentTime;
 
-  return { resetTime, isOutdated };
+  return { resetTime, isOutdated, secondsUntilReset };
 }
 
 async function parseSessionFile(filePath: string): Promise<EventRecord | null> {
@@ -133,30 +149,45 @@ export async function getRateLimitData(customPath?: string): Promise<ParseResult
     const { file, record } = result;
     const payload = record.payload;
     const rateLimits = payload.rate_limits || {};
+    const info = payload.info;
 
     const recordTimestamp = new Date(record.timestamp.replace('Z', '+00:00'));
     const currentTime = new Date();
+
+    if (!info) {
+      log('Token count payload missing usage info; defaulting to zero values.', false);
+    } else if (!info.total_token_usage || !info.last_token_usage) {
+      log('Token count payload has incomplete usage info; defaulting missing fields to zero.', false);
+    }
+
+    const totalUsage = info?.total_token_usage ?? createEmptyTokenUsage();
+    const lastUsage = info?.last_token_usage ?? createEmptyTokenUsage();
 
     const data: RateLimitData = {
       file_path: file,
       record_timestamp: recordTimestamp,
       current_time: currentTime,
-      total_usage: payload.info.total_token_usage,
-      last_usage: payload.info.last_token_usage
+      total_usage: totalUsage,
+      last_usage: lastUsage
     };
 
     // Process primary (5h) rate limits
     if (rateLimits.primary) {
       const primary = rateLimits.primary;
-      const { resetTime, isOutdated } = calculateResetTime(recordTimestamp, primary.resets_in_seconds);
-      const windowSeconds = primary.window_minutes * 60;
+      const { resetTime, isOutdated, secondsUntilReset } = calculateResetTime(recordTimestamp, primary);
+      const rawWindowMinutes = primary.window_minutes;
+      const windowMinutes = typeof rawWindowMinutes === 'number' && rawWindowMinutes > 0 ? rawWindowMinutes : 0;
+      const windowSeconds = windowMinutes * 60;
 
       let timePercent: number;
-      if (isOutdated) {
+      if (windowSeconds <= 0) {
+        timePercent = 0;
+      } else if (isOutdated) {
         timePercent = 100.0;
       } else {
-        const elapsedSeconds = windowSeconds - primary.resets_in_seconds;
-        timePercent = windowSeconds > 0 ? (elapsedSeconds / windowSeconds) * 100 : 0;
+        const elapsedSeconds = windowSeconds - secondsUntilReset;
+        const boundedElapsedSeconds = Math.max(0, Math.min(windowSeconds, elapsedSeconds));
+        timePercent = (boundedElapsedSeconds / windowSeconds) * 100;
       }
 
       data.primary = {
@@ -164,22 +195,27 @@ export async function getRateLimitData(customPath?: string): Promise<ParseResult
         time_percent: Math.max(0, Math.min(100, timePercent)),
         reset_time: resetTime,
         outdated: isOutdated,
-        window_minutes: primary.window_minutes
+        window_minutes: windowMinutes
       };
     }
 
     // Process secondary (weekly) rate limits
     if (rateLimits.secondary) {
       const secondary = rateLimits.secondary;
-      const { resetTime, isOutdated } = calculateResetTime(recordTimestamp, secondary.resets_in_seconds);
-      const windowSeconds = secondary.window_minutes * 60;
+      const { resetTime, isOutdated, secondsUntilReset } = calculateResetTime(recordTimestamp, secondary);
+      const rawWindowMinutes = secondary.window_minutes;
+      const windowMinutes = typeof rawWindowMinutes === 'number' && rawWindowMinutes > 0 ? rawWindowMinutes : 0;
+      const windowSeconds = windowMinutes * 60;
 
       let timePercent: number;
-      if (isOutdated) {
+      if (windowSeconds <= 0) {
+        timePercent = 0;
+      } else if (isOutdated) {
         timePercent = 100.0;
       } else {
-        const elapsedSeconds = windowSeconds - secondary.resets_in_seconds;
-        timePercent = windowSeconds > 0 ? (elapsedSeconds / windowSeconds) * 100 : 0;
+        const elapsedSeconds = windowSeconds - secondsUntilReset;
+        const boundedElapsedSeconds = Math.max(0, Math.min(windowSeconds, elapsedSeconds));
+        timePercent = (boundedElapsedSeconds / windowSeconds) * 100;
       }
 
       data.secondary = {
@@ -187,7 +223,7 @@ export async function getRateLimitData(customPath?: string): Promise<ParseResult
         time_percent: Math.max(0, Math.min(100, timePercent)),
         reset_time: resetTime,
         outdated: isOutdated,
-        window_minutes: secondary.window_minutes
+        window_minutes: windowMinutes
       };
     }
 
@@ -207,6 +243,21 @@ export async function getRateLimitData(customPath?: string): Promise<ParseResult
   }
 }
 
+function createEmptyTokenUsage(): TokenUsage {
+  return {
+    input_tokens: 0,
+    cached_input_tokens: 0,
+    output_tokens: 0,
+    reasoning_output_tokens: 0,
+    total_tokens: 0
+  };
+}
+
+function formatTokenNumber(num: number): string {
+  const numInK = Math.round(num / 1000);
+  return numInK.toLocaleString('en-US') + ' K';
+}
+
 export function formatTokenUsage(usage: { input_tokens: number; cached_input_tokens: number; output_tokens: number; reasoning_output_tokens: number; total_tokens: number }): string {
-  return `input ${usage.input_tokens}, cached ${usage.cached_input_tokens}, output ${usage.output_tokens}, reasoning ${usage.reasoning_output_tokens}, subtotal ${usage.total_tokens}`;
+  return `input ${formatTokenNumber(usage.input_tokens)}, cached ${formatTokenNumber(usage.cached_input_tokens)}, output ${formatTokenNumber(usage.output_tokens)}, reasoning ${formatTokenNumber(usage.reasoning_output_tokens)}`;
 }

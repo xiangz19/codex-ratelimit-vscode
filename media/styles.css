@@ -57,7 +57,7 @@ body {
 .progress-track {
   flex: 1;
   height: 20px;
-  background-color: var(--vscode-progressBar-background);
+  background-color: rgba(128, 128, 128, 0.2);
   border: 1px solid var(--vscode-panel-border);
   border-radius: 3px;
   overflow: hidden;
@@ -72,11 +72,11 @@ body {
 }
 
 .progress-fill.usage {
-  background-color: var(--vscode-progressBar-background);
+  background-color: #2196F3;
 }
 
 .progress-fill.time {
-  background-color: var(--vscode-button-background);
+  background-color: #9C27B0;
 }
 
 .progress-fill.low {
@@ -84,11 +84,11 @@ body {
 }
 
 .progress-fill.medium {
-  background-color: #FF9800;
+  background-color: #f3d898;
 }
 
 .progress-fill.high {
-  background-color: #F44336;
+  background-color: #eca7a7;
 }
 
 .progress-fill.outdated {

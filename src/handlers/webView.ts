@@ -106,6 +106,9 @@ export class RateLimitWebView {
 
   private _getHtml(webview: vscode.Webview, data: RateLimitData): string {
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'styles.css'));
+    const config = vscode.workspace.getConfiguration('codexRatelimit');
+    const warningColor = config.get<string>('color.warningColor', '#f3d898');
+    const criticalColor = config.get<string>('color.criticalColor', '#eca7a7');
 
     return `<!DOCTYPE html>
     <html lang="en">
@@ -114,6 +117,14 @@ export class RateLimitWebView {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Codex Rate Limit Details</title>
       <link href="${styleUri}" rel="stylesheet">
+      <style>
+        .progress-fill.usage.medium {
+          background-color: ${warningColor} !important;
+        }
+        .progress-fill.usage.high {
+          background-color: ${criticalColor} !important;
+        }
+      </style>
     </head>
     <body>
       <div class="container">
@@ -156,6 +167,10 @@ export class RateLimitWebView {
       const primary = data.primary;
       const resetTimeStr = primary.reset_time.toLocaleString();
       const outdatedStr = primary.outdated ? ' [OUTDATED]' : '';
+      const timePercent = primary.outdated ? 0 : primary.time_percent;
+      const usagePercent = primary.outdated ? 0 : primary.used_percent;
+      const timeText = primary.outdated ? 'N/A' : primary.time_percent.toFixed(1) + '%';
+      const usageText = primary.outdated ? 'N/A' : primary.used_percent.toFixed(1) + '%';
 
       html += `
         <div class="progress-section">
@@ -164,20 +179,20 @@ export class RateLimitWebView {
             <div class="progress-bar">
               <div class="progress-label">SESSION TIME</div>
               <div class="progress-track">
-                <div class="progress-fill time ${this._getProgressClass(primary.time_percent, primary.outdated)}"
-                     style="width: ${primary.time_percent}%"></div>
+                <div class="progress-fill time ${this._getProgressClass(timePercent, primary.outdated)}"
+                     style="width: ${timePercent}%"></div>
               </div>
-              <div class="progress-percentage">${primary.time_percent.toFixed(1)}%</div>
+              <div class="progress-percentage">${timeText}</div>
             </div>
             <div class="progress-details">Reset: ${resetTimeStr}${outdatedStr}</div>
 
             <div class="progress-bar">
               <div class="progress-label">5H USAGE</div>
               <div class="progress-track">
-                <div class="progress-fill usage ${this._getUsageClass(primary.used_percent, primary.outdated)}"
-                     style="width: ${primary.used_percent}%"></div>
+                <div class="progress-fill usage ${this._getUsageClass(usagePercent, primary.outdated)}"
+                     style="width: ${usagePercent}%"></div>
               </div>
-              <div class="progress-percentage">${primary.used_percent.toFixed(1)}%</div>
+              <div class="progress-percentage">${usageText}</div>
             </div>
           </div>
         </div>
@@ -189,6 +204,10 @@ export class RateLimitWebView {
       const secondary = data.secondary;
       const resetTimeStr = secondary.reset_time.toLocaleString();
       const outdatedStr = secondary.outdated ? ' [OUTDATED]' : '';
+      const timePercent = secondary.outdated ? 0 : secondary.time_percent;
+      const usagePercent = secondary.outdated ? 0 : secondary.used_percent;
+      const timeText = secondary.outdated ? 'N/A' : secondary.time_percent.toFixed(1) + '%';
+      const usageText = secondary.outdated ? 'N/A' : secondary.used_percent.toFixed(1) + '%';
 
       html += `
         <div class="progress-section">
@@ -197,20 +216,20 @@ export class RateLimitWebView {
             <div class="progress-bar">
               <div class="progress-label">WEEKLY TIME</div>
               <div class="progress-track">
-                <div class="progress-fill time ${this._getProgressClass(secondary.time_percent, secondary.outdated)}"
-                     style="width: ${secondary.time_percent}%"></div>
+                <div class="progress-fill time ${this._getProgressClass(timePercent, secondary.outdated)}"
+                     style="width: ${timePercent}%"></div>
               </div>
-              <div class="progress-percentage">${secondary.time_percent.toFixed(1)}%</div>
+              <div class="progress-percentage">${timeText}</div>
             </div>
             <div class="progress-details">Reset: ${resetTimeStr}${outdatedStr}</div>
 
             <div class="progress-bar">
               <div class="progress-label">WEEKLY USAGE</div>
               <div class="progress-track">
-                <div class="progress-fill usage ${this._getUsageClass(secondary.used_percent, secondary.outdated)}"
-                     style="width: ${secondary.used_percent}%"></div>
+                <div class="progress-fill usage ${this._getUsageClass(usagePercent, secondary.outdated)}"
+                     style="width: ${usagePercent}%"></div>
               </div>
-              <div class="progress-percentage">${secondary.used_percent.toFixed(1)}%</div>
+              <div class="progress-percentage">${usageText}</div>
             </div>
           </div>
         </div>
@@ -232,9 +251,13 @@ export class RateLimitWebView {
       return 'outdated';
     }
 
-    if (percentage >= 90) {
+    const config = vscode.workspace.getConfiguration('codexRatelimit');
+    const warningThreshold = config.get<number>('color.warningThreshold', 70);
+    const criticalThreshold = config.get<number>('color.criticalThreshold', 90);
+
+    if (percentage >= criticalThreshold) {
       return 'high';
-    } else if (percentage >= 70) {
+    } else if (percentage >= warningThreshold) {
       return 'medium';
     } else {
       return 'low';

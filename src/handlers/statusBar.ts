@@ -11,39 +11,26 @@ export function createStatusBarItem(): vscode.StatusBarItem {
   return statusBarItem;
 }
 
-export function getStatusBarColor(percentage: number): vscode.ThemeColor {
+export function getStatusBarColor(percentage: number): string | vscode.ThemeColor {
   const config = vscode.workspace.getConfiguration('codexRatelimit');
-  const colorsEnabled = config.get<boolean>('enableStatusBarColors', true);
-  const warningThreshold = config.get<number>('warningThreshold', 70);
+  const colorsEnabled = config.get<boolean>('color.enable', true);
 
   if (!colorsEnabled) {
     return new vscode.ThemeColor('statusBarItem.foreground');
   }
 
-  if (percentage >= 95) {
-    return new vscode.ThemeColor('charts.red');
-  } else if (percentage >= 90) {
-    return new vscode.ThemeColor('errorForeground');
+  const warningThreshold = config.get<number>('color.warningThreshold', 70);
+  const warningColor = config.get<string>('color.warningColor', '#f3d898');
+  const criticalThreshold = config.get<number>('color.criticalThreshold', 90);
+  const criticalColor = config.get<string>('color.criticalColor', '#eca7a7');
+
+  if (percentage >= criticalThreshold) {
+    return criticalColor;
   } else if (percentage >= warningThreshold) {
-    return new vscode.ThemeColor('charts.yellow');
-  } else if (percentage >= 50) {
-    return new vscode.ThemeColor('charts.green');
+    return warningColor;
   } else {
     return new vscode.ThemeColor('statusBarItem.foreground');
   }
-}
-
-export function getUsageEmoji(percentage: number): string {
-  if (percentage >= 90) {
-    return '🔴';
-  }
-  if (percentage >= 75) {
-    return '🟡';
-  }
-  if (percentage >= 50) {
-    return '🟢';
-  }
-  return '✅';
 }
 
 export function formatRelativeTime(date: Date): string {
@@ -51,6 +38,45 @@ export function formatRelativeTime(date: Date): string {
   const minutes = date.getMinutes().toString().padStart(2, '0');
   const seconds = date.getSeconds().toString().padStart(2, '0');
   return `${hours}:${minutes}:${seconds}`;
+}
+
+function createProgressBar(percentage: number, type: 'usage' | 'time', outdated: boolean): string {
+  const width = 200; // Total width in pixels
+  const height = 16; // Height in pixels
+  const filledWidth = Math.round((percentage / 100) * width);
+
+  let fillColor: string;
+  const bgColor = '#333';
+
+  if (outdated) {
+    fillColor = '#666';
+  } else if (type === 'time') {
+    fillColor = '#9C27B0'; // Purple for time progress
+  } else {
+    // Usage color based on threshold
+    const config = vscode.workspace.getConfiguration('codexRatelimit');
+    const warningThreshold = config.get<number>('color.warningThreshold', 70);
+    const warningColor = config.get<string>('color.warningColor', '#f3d898');
+    const criticalThreshold = config.get<number>('color.criticalThreshold', 90);
+    const criticalColor = config.get<string>('color.criticalColor', '#eca7a7');
+
+    if (percentage >= criticalThreshold) {
+      fillColor = criticalColor;
+    } else if (percentage >= warningThreshold) {
+      fillColor = warningColor;
+    } else {
+      fillColor = '#4CAF50'; // Green
+    }
+  }
+
+  // Create SVG progress bar
+  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+    <rect width="${width}" height="${height}" fill="${bgColor}" rx="2"/>
+    <rect width="${filledWidth}" height="${height}" fill="${fillColor}" rx="2"/>
+  </svg>`;
+
+  const encodedSvg = Buffer.from(svg).toString('base64');
+  return `<img src="data:image/svg+xml;base64,${encodedSvg}" alt="Progress: ${percentage.toFixed(1)}%" style="vertical-align: middle;"/>`;
 }
 
 export function createMarkdownTooltip(data: RateLimitData): vscode.MarkdownString {
@@ -69,15 +95,25 @@ export function createMarkdownTooltip(data: RateLimitData): vscode.MarkdownStrin
     const primary = data.primary;
     const resetTimeStr = primary.reset_time.toLocaleString();
     const outdatedStr = primary.outdated ? ' [OUTDATED]' : '';
-    const usageEmoji = getUsageEmoji(primary.used_percent);
+    const usagePercent = primary.outdated ? 0 : primary.used_percent;
+    const timePercent = primary.outdated ? 0 : primary.time_percent;
+    const usageText = primary.outdated ? 'N/A' : usagePercent.toFixed(1) + '%';
+    const timeText = primary.outdated ? 'N/A' : timePercent.toFixed(1) + '%';
 
     tooltip.appendMarkdown('<div align="center">\n\n');
     tooltip.appendMarkdown('### 🚀 5-Hour Session\n\n');
     tooltip.appendMarkdown('</div>\n\n');
 
-    tooltip.appendMarkdown(`**Usage:** ${primary.used_percent.toFixed(1)}% ${usageEmoji}\n\n`);
-    tooltip.appendMarkdown(`**Time Progress:** ${primary.time_percent.toFixed(1)}%\n\n`);
-    tooltip.appendMarkdown(`**Reset:** ${resetTimeStr}${outdatedStr}\n\n`);
+    tooltip.appendMarkdown('<table style="width:100%; border-collapse: collapse; table-layout: fixed;">\n');
+    tooltip.appendMarkdown('<colgroup>\n');
+    tooltip.appendMarkdown('<col style="width:120px;">\n');
+    tooltip.appendMarkdown('<col style="width:auto;">\n');
+    tooltip.appendMarkdown('<col style="width:55px;">\n');
+    tooltip.appendMarkdown('</colgroup>\n');
+    tooltip.appendMarkdown(`<tr><td><strong>Usage:</strong></td><td>${createProgressBar(usagePercent, 'usage', primary.outdated)}</td><td style="text-align:right; vertical-align:middle;">${usageText}</td></tr>\n`);
+    tooltip.appendMarkdown(`<tr><td><strong>Time Progress:</strong></td><td>${createProgressBar(timePercent, 'time', primary.outdated)}</td><td style="text-align:right;">${timeText}</td></tr>\n`);
+    tooltip.appendMarkdown(`<tr><td colspan="3" style="padding-top:5px;"><strong>Reset:</strong> ${resetTimeStr}${outdatedStr}</td></tr>\n`);
+    tooltip.appendMarkdown('</table>\n\n');
   }
 
   // Weekly info
@@ -85,15 +121,25 @@ export function createMarkdownTooltip(data: RateLimitData): vscode.MarkdownStrin
     const secondary = data.secondary;
     const resetTimeStr = secondary.reset_time.toLocaleString();
     const outdatedStr = secondary.outdated ? ' [OUTDATED]' : '';
-    const usageEmoji = getUsageEmoji(secondary.used_percent);
+    const usagePercent = secondary.outdated ? 0 : secondary.used_percent;
+    const timePercent = secondary.outdated ? 0 : secondary.time_percent;
+    const usageText = secondary.outdated ? 'N/A' : usagePercent.toFixed(1) + '%';
+    const timeText = secondary.outdated ? 'N/A' : timePercent.toFixed(1) + '%';
 
     tooltip.appendMarkdown('<div align="center">\n\n');
     tooltip.appendMarkdown('### 📅 Weekly Limit\n\n');
     tooltip.appendMarkdown('</div>\n\n');
 
-    tooltip.appendMarkdown(`**Usage:** ${secondary.used_percent.toFixed(1)}% ${usageEmoji}\n\n`);
-    tooltip.appendMarkdown(`**Time Progress:** ${secondary.time_percent.toFixed(1)}%\n\n`);
-    tooltip.appendMarkdown(`**Reset:** ${resetTimeStr}${outdatedStr}\n\n`);
+    tooltip.appendMarkdown('<table style="width:100%; border-collapse: collapse; table-layout: fixed;">\n');
+    tooltip.appendMarkdown('<colgroup>\n');
+    tooltip.appendMarkdown('<col style="width:120px;">\n');
+    tooltip.appendMarkdown('<col style="width:auto;">\n');
+    tooltip.appendMarkdown('<col style="width:55px;">\n');
+    tooltip.appendMarkdown('</colgroup>\n');
+    tooltip.appendMarkdown(`<tr><td><strong>Usage:</strong></td><td>${createProgressBar(usagePercent, 'usage', secondary.outdated)}</td><td style="text-align:right; vertical-align:middle;">${usageText}</td></tr>\n`);
+    tooltip.appendMarkdown(`<tr><td><strong>Time Progress:</strong></td><td>${createProgressBar(timePercent, 'time', secondary.outdated)}</td><td style="text-align:right;">${timeText}</td></tr>\n`);
+    tooltip.appendMarkdown(`<tr><td colspan="3" style="padding-top:5px;"><strong>Reset:</strong> ${resetTimeStr}${outdatedStr}</td></tr>\n`);
+    tooltip.appendMarkdown('</table>\n\n');
   }
 
   // Token usage summary
@@ -105,8 +151,13 @@ export function createMarkdownTooltip(data: RateLimitData): vscode.MarkdownStrin
   const total = data.total_usage;
   const last = data.last_usage;
 
-  tooltip.appendMarkdown(`**Total:** input ${total.input_tokens}, cached ${total.cached_input_tokens}, output ${total.output_tokens}, reasoning ${total.reasoning_output_tokens}\n\n`);
-  tooltip.appendMarkdown(`**Last:** input ${last.input_tokens}, cached ${last.cached_input_tokens}, output ${last.output_tokens}, reasoning ${last.reasoning_output_tokens}\n\n`);
+  function formatTokenNumber(num: number): string {
+    const numInK = Math.round(num / 1000);
+    return numInK.toLocaleString('en-US') + ' K';
+  }
+
+  tooltip.appendMarkdown(`**Total:** input ${formatTokenNumber(total.input_tokens)}, cached ${formatTokenNumber(total.cached_input_tokens)}, output ${formatTokenNumber(total.output_tokens)}, reasoning ${formatTokenNumber(total.reasoning_output_tokens)}\n\n`);
+  tooltip.appendMarkdown(`**Last:** input ${formatTokenNumber(last.input_tokens)}, cached ${formatTokenNumber(last.cached_input_tokens)}, output ${formatTokenNumber(last.output_tokens)}, reasoning ${formatTokenNumber(last.reasoning_output_tokens)}\n\n`);
 
   // Action buttons
   tooltip.appendMarkdown('---\n\n');
@@ -134,12 +185,14 @@ export function updateStatusBar(data: RateLimitData): void {
     let weeklyUsage = 0;
 
     if (data.primary) {
-      primaryUsage = data.primary.used_percent;
+      // If outdated, set usage to 0%
+      primaryUsage = data.primary.outdated ? 0 : data.primary.used_percent;
       maxUsagePercent = Math.max(maxUsagePercent, primaryUsage);
     }
 
     if (data.secondary) {
-      weeklyUsage = data.secondary.used_percent;
+      // If outdated, set usage to 0%
+      weeklyUsage = data.secondary.outdated ? 0 : data.secondary.used_percent;
       maxUsagePercent = Math.max(maxUsagePercent, weeklyUsage);
     }
 

@@ -3,7 +3,7 @@
   "displayName": "Codex Rate Limit Monitor",
   "description": "A VSCode extension for monitoring Codex rate limits",
   "license": "MIT",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "publisher": "xiangz19",
   "icon": "icon.png",
   "repository": {
@@ -57,18 +57,38 @@
             "description": "Enable detailed logging for debugging purposes.",
             "scope": "window"
           },
-          "codexRatelimit.enableStatusBarColors": {
+          "codexRatelimit.color.enable": {
             "type": "boolean",
             "default": true,
-            "description": "Enable colored status bar based on usage percentage.",
+            "description": "Enable colored status bar text and progress bars based on usage percentage.",
             "scope": "window"
           },
-          "codexRatelimit.warningThreshold": {
+          "codexRatelimit.color.criticalColor": {
+            "type": "string",
+            "default": "#eca7a7",
+            "description": "Color for critical state (usage at or above critical threshold). Applied to status bar text and progress bars.",
+            "scope": "window"
+          },
+          "codexRatelimit.color.criticalThreshold": {
+            "type": "number",
+            "default": 90,
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Usage percentage threshold for critical state (applied to status bar text and progress bars).",
+            "scope": "window"
+          },
+          "codexRatelimit.color.warningColor": {
+            "type": "string",
+            "default": "#f3d898",
+            "description": "Color for warning state (usage at or above warning threshold but below critical threshold). Applied to status bar text and progress bars.",
+            "scope": "window"
+          },
+          "codexRatelimit.color.warningThreshold": {
             "type": "number",
             "default": 70,
             "minimum": 0,
             "maximum": 100,
-            "description": "Usage percentage threshold for warning colors.",
+            "description": "Usage percentage threshold for warning state (applied to status bar text and progress bars).",
             "scope": "window"
           },
           "codexRatelimit.sessionPath": {

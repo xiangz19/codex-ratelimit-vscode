@@ -8,16 +8,17 @@ export interface TokenUsage {
 
 export interface RateLimit {
   used_percent: number;
-  resets_in_seconds: number;
   window_minutes: number;
+  resets_in_seconds?: number;
+  resets_at?: number;
 }
 
 export interface TokenCountPayload {
   type: 'token_count';
   info: {
-    total_token_usage: TokenUsage;
-    last_token_usage: TokenUsage;
-  };
+    total_token_usage: TokenUsage | null;
+    last_token_usage: TokenUsage | null;
+  } | null;
   rate_limits?: {
     primary?: RateLimit;    // 5-hour limit
     secondary?: RateLimit;  // Weekly limit
