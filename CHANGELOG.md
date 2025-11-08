@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2025-11-08
+- Switch session discovery to a two-phase search that prioritizes files touched within the last hour before walking the previous seven days by modification time, ensuring continued work in older sessions is detected.
+
 ## [0.10.0] - 2025-10-27
 - Add customizable color settings for status bar and webview progress indicators with warning/critical thresholds.
 - Improve tooltips and webview displays to handle outdated data and format token totals more readably.

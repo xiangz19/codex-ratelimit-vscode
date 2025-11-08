@@ -104,7 +104,7 @@ The extension can be configured through VSCode settings:
 
 The extension monitors Codex session files located at `~/.codex/sessions/` by default. It:
 
-1. Searches for the latest `token_count` events in session files
+1. Searches for the latest `token_count` events in session files using a two-phase, modification-time-based scan (fast path checks today's files from the last hour, fallback walks all session files from the previous seven days by most recent edit)
 2. Extracts rate limit information (5-hour and weekly limits)
 3. Calculates usage percentages and time progress
 4. Updates the status bar every 10 seconds

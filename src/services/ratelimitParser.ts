@@ -73,19 +73,8 @@ async function parseSessionFile(filePath: string): Promise<EventRecord | null> {
   }
 }
 
-async function findLatestTokenCountRecord(basePath?: string): Promise<{ file: string; record: EventRecord } | null> {
-  const sessionPath = getSessionBasePath(basePath);
-
-  if (!fs.existsSync(sessionPath)) {
-    log(`Session path does not exist: ${sessionPath}`, true);
-    return null;
-  }
-
-  let latestRecord: EventRecord | null = null;
-  let latestTimestamp: Date | null = null;
-  let latestFile: string | null = null;
-
-  // Search backwards for up to 7 days
+async function getSessionFilesWithMtime(sessionPath: string): Promise<{ file: string; mtimeMs: number }[]> {
+  const sessionFiles: { file: string; mtimeMs: number }[] = [];
   const currentDate = new Date();
 
   for (let daysBack = 0; daysBack < 7; daysBack++) {
@@ -98,33 +87,91 @@ async function findLatestTokenCountRecord(basePath?: string): Promise<{ file: st
 
     const datePath = path.join(sessionPath, String(year), month, day);
 
-    if (fs.existsSync(datePath)) {
-      try {
-        const pattern = path.join(datePath, 'rollout-*.jsonl');
-        const normalizedPattern = pattern.replace(/\\/g, '/');
-        const files = await glob(normalizedPattern, { nodir: true });
+    if (!fs.existsSync(datePath)) {
+      continue;
+    }
 
-        for (const file of files) {
-          const record = await parseSessionFile(file);
-          if (record) {
-            const timestamp = new Date(record.timestamp.replace('Z', '+00:00'));
+    try {
+      const pattern = path.join(datePath, 'rollout-*.jsonl').replace(/\\/g, '/');
+      const files = await glob(pattern, { nodir: true });
 
-            if (!latestTimestamp || timestamp > latestTimestamp) {
-              latestTimestamp = timestamp;
-              latestRecord = record;
-              latestFile = file;
-            }
-          }
+      for (const file of files) {
+        try {
+          const stats = await fs.promises.stat(file);
+          sessionFiles.push({ file, mtimeMs: stats.mtimeMs });
+        } catch (error) {
+          log(`Error getting mtime for session file ${file}: ${error}`, false);
         }
-
-        // If we found records on this day, return the latest one
-        if (latestRecord && latestFile) {
-          return { file: latestFile, record: latestRecord };
-        }
-      } catch (error) {
-        log(`Error searching date path ${datePath}: ${error}`, false);
-        continue;
       }
+    } catch (error) {
+      log(`Error collecting session files from ${datePath}: ${error}`, false);
+    }
+  }
+
+  sessionFiles.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return sessionFiles;
+}
+
+async function findLatestTokenCountRecord(basePath?: string): Promise<{ file: string; record: EventRecord } | null> {
+  const sessionPath = getSessionBasePath(basePath);
+
+  if (!fs.existsSync(sessionPath)) {
+    log(`Session path does not exist: ${sessionPath}`, true);
+    return null;
+  }
+
+  const nowMs = Date.now();
+  const oneHourAgoMs = nowMs - 60 * 60 * 1000;
+  const attemptedFiles = new Set<string>();
+
+  const today = new Date();
+  const todayYear = today.getFullYear();
+  const todayMonth = String(today.getMonth() + 1).padStart(2, '0');
+  const todayDay = String(today.getDate()).padStart(2, '0');
+  const todayPath = path.join(sessionPath, String(todayYear), todayMonth, todayDay);
+
+  if (fs.existsSync(todayPath)) {
+    try {
+      const pattern = path.join(todayPath, 'rollout-*.jsonl').replace(/\\/g, '/');
+      const files = await glob(pattern, { nodir: true });
+
+      const recentFiles: { file: string; mtimeMs: number }[] = [];
+
+      for (const file of files) {
+        try {
+          const stats = await fs.promises.stat(file);
+          if (stats.mtimeMs >= oneHourAgoMs) {
+            recentFiles.push({ file, mtimeMs: stats.mtimeMs });
+          }
+        } catch (error) {
+          log(`Error reading stats for session file ${file}: ${error}`, false);
+        }
+      }
+
+      recentFiles.sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+      for (const { file } of recentFiles) {
+        attemptedFiles.add(file);
+        const record = await parseSessionFile(file);
+        if (record) {
+          return { file, record };
+        }
+      }
+    } catch (error) {
+      log(`Error searching today's session files in ${todayPath}: ${error}`, false);
+    }
+  }
+
+  const sessionFiles = await getSessionFilesWithMtime(sessionPath);
+
+  for (const { file } of sessionFiles) {
+    if (attemptedFiles.has(file)) {
+      continue;
+    }
+
+    const record = await parseSessionFile(file);
+    if (record) {
+      return { file, record };
     }
   }
 
