@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2025-11-08
+- Add opt-in setting to show the Output panel when errors are logged so it no longer steals focus by default.
+
 ## [0.11.0] - 2025-11-08
 - Switch session discovery to a two-phase search that prioritizes files touched within the last hour before walking the previous seven days by modification time, ensuring continued work in older sessions is detected.
 

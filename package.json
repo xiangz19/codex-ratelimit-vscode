@@ -3,7 +3,7 @@
   "displayName": "Codex Rate Limit Monitor",
   "description": "A VSCode extension for monitoring Codex rate limits",
   "license": "MIT",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "publisher": "xiangz19",
   "icon": "icon.png",
   "repository": {
@@ -55,6 +55,12 @@
             "type": "boolean",
             "default": false,
             "description": "Enable detailed logging for debugging purposes.",
+            "scope": "window"
+          },
+          "codexRatelimit.showOutputOnError": {
+            "type": "boolean",
+            "default": false,
+            "description": "Show the output panel automatically when an error is logged.",
             "scope": "window"
           },
           "codexRatelimit.color.enable": {

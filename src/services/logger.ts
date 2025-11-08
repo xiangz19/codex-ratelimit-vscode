@@ -11,6 +11,7 @@ export function initializeLogging(): void {
 export function log(message: string, isError: boolean = false): void {
   const config = vscode.workspace.getConfiguration('codexRatelimit');
   const enableLogging = config.get<boolean>('enableLogging', false);
+  const showOutputOnError = config.get<boolean>('showOutputOnError', false);
 
   // Always log errors and important messages, only filter debug messages
   if (!enableLogging && !isError && !message.includes('Manual refresh') && !message.includes('Extension activation')) {
@@ -22,7 +23,7 @@ export function log(message: string, isError: boolean = false): void {
 
   if (outputChannel) {
     outputChannel.appendLine(logMessage);
-    if (isError) {
+    if (isError && showOutputOnError) {
       outputChannel.show(true);
     }
   }
